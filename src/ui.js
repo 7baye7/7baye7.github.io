@@ -787,6 +787,7 @@ $(document).ready(function() {
     setTableColumnRightAlignment();
     editableTable.refresh();
     toggleStartCalculationButtonIfZeroAssetsReached();
+    toggleAddNewAssetButtonIfMaxAssetsReached();
     hideCalculatedResults();
   });
 
