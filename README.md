@@ -1,6 +1,8 @@
 # Investment Portfolio Rebalancing Calculator
 
-Calculates the amount of shares one needs to buy to rebalance an investment portfolio and bring it closer to target allocation while spending as much of the investment as possible. Written in JavaScript. No server needed, works in your browser. Under the hood, the calculator solves the [unbounded knapsack problem](https://en.wikipedia.org/wiki/Knapsack_problem) with a genetic algorithm.
+**[Calculator at GitHub Pages](https://7baye7.github.io/)**
+
+The tool calculates the amount of shares one needs to buy to rebalance an investment portfolio and bring it closer to target allocation while spending as much of the investment as possible. Written in JavaScript. No serving mechanism like Node.js is needed, will work if you download the repository and open [index.html](index.html) in your browser. Under the hood, the calculator solves the [unbounded knapsack problem](https://en.wikipedia.org/wiki/Knapsack_problem) with a genetic algorithm.
 
 ## Dependencies
 
@@ -69,7 +71,7 @@ Mr. Smith saw that Majima Construction now occupies only 7.62% of his portfolio 
 
 ## Solution
 
-Download this repository and open [index.html](index.html) in your browser:
+Go to the **[Investment Portfolio Rebalancing Calculator at GitHub Pages](https://7baye7.github.io/)**. Alternatively, you can download this repository and open [index.html](index.html) in your browser:
 
 ![start](img/start.jpg)
 
@@ -95,4 +97,4 @@ Since the genetic algorithm is stochastic and is not guaranteed to always conver
 
 ## Tests
 
-QUnit tests are available in the [tests/index.html](tests/index.html) file.
+QUnit tests are available in the [tests/tests.html](tests/tests.html) file.
