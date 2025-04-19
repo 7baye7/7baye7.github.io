@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<title>QUnit Tests for Investment Portfolio Rebalancing Calculator</title>
+<link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.23.0.css">
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture"></div>
+  <script type="text/javascript" src="https://code.jquery.com/qunit/qunit-2.23.0.js"></script>
+  <script type="text/javascript" src='https://cdn.jsdelivr.net/npm/bignumber.js@9.1.2/bignumber.min.js'></script>
+  <script type="text/javascript" src="../src/genetic.js"></script>
+
+<script>
+
+QUnit.module('Utility', function() {
+  const assetData = new Map([
+    ['Foo', new AssetData(new BigNumber(10), new BigNumber(568.32), new BigNumber(33.87))],
+    ['Bar', new AssetData(new BigNumber(20), new BigNumber(5679.17), new BigNumber(983.21))],
+    ['Baz', new AssetData(new BigNumber(70), new BigNumber(9732.51), new BigNumber(98.24))]
+  ]);
+
+  QUnit.test('sumCurrentAssetValues sums asset values', function(assert) {
+    // arrange
+    const expected = new BigNumber(15980);
+
+    // act
+    const result = Utility.sumCurrentAssetValues(assetData);
+
+    // assert
+    assert.true(result.isEqualTo(expected));
+  });
+
+  QUnit.test('sumMoney sums assets', function(assert) {
+    // arrange
+    const moneyMap = new Map([
+      ['Foo', new BigNumber(568.32)],
+      ['Bar', new BigNumber(5679.17)],
+      ['Baz', new BigNumber(9732.51)]
+    ]);
+    const expected = new BigNumber(15980);
+
+    // act
+    const result = Utility.sumMoney(moneyMap);
+
+    // assert
+    assert.true(result.isEqualTo(expected));
+  });
+
+  QUnit.test('calculateProjectedInvestmentPerAsset calculates investments', function(assert) {
+    // arrange
+    const strategy = new Map([
+      ['Foo', new BigNumber(3)],
+      ['Bar', new BigNumber(1)],
+      ['Baz', new BigNumber(0)]
+    ]);
+    const expected = new Map([
+      ['Foo', new BigNumber(101.61)],
+      ['Bar', new BigNumber(983.21)],
+      ['Baz', new BigNumber(0)]
+    ]);
+
+    // act
+    const result = Utility.calculateProjectedInvestmentPerAsset(strategy, assetData);
+
+    // assert
+    assert.deepEqual(result, expected);
+  });
+
+  QUnit.test('calculateStrategyStats calculates stats', function(assert) {
+    // arrange
+    const strategy = new Map([
+      ['Foo', new BigNumber(3)],
+      ['Bar', new BigNumber(1)],
+      ['Baz', new BigNumber(0)]
+    ]);
+    const expected = { stats: [ new StrategyData('Foo', 
+        new BigNumber(10), 
+        new BigNumber(568.32), 
+        new BigNumber(33.87), 
+        new BigNumber({ s: 1, e: 0, c: [ 3, 55644555694618, 27280000000000 ], _isBigNumber: true }),
+        new BigNumber(3), 
+        new BigNumber({ s: 1, e: 0, c: [ 3, 92579587713201, 78000000000000 ], _isBigNumber: true }), 
+        new BigNumber(101.61)),
+      new StrategyData('Bar',
+        new BigNumber(20),
+        new BigNumber(5679.17),
+        new BigNumber(983.21),
+        new BigNumber({ s: 1, e: 1, c: [ 35, 53923654568210, 26280000000000 ], _isBigNumber: true }), 
+        new BigNumber(1), 
+        new BigNumber({ s: 1, e: 1, c: [ 39, 4160723640800, 19600000000000 ], _isBigNumber: true }), 
+        new BigNumber(983.21)),
+      new StrategyData('Baz',
+        new BigNumber(70),
+        new BigNumber(9732.51),
+        new BigNumber(98.24),
+        new BigNumber({ s: 1, e: 1, c: [ 60, 90431789737171, 46430000000000 ], _isBigNumber: true }), 
+        new BigNumber(0), 
+        new BigNumber({ s: 1, e: 1, c: [ 57, 3259688645998, 2400000000000 ], _isBigNumber: true }), 
+        new BigNumber(0))
+    ], totalProjectedInvestment: new BigNumber(1084.82) };
+
+    // act
+    const result = Utility.calculateStrategyStats(strategy, assetData);
+
+    // assert
+    assert.deepEqual(result.totalProjectedInvestment, expected.totalProjectedInvestment);
+  });
+
+  QUnit.test('calculateStrategyStats calculates stats if target percentage is zero', function(assert) {
+    // arrange
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(100), new BigNumber(100), new BigNumber(100))],
+      ['Bar', new AssetData(new BigNumber(0), new BigNumber(0), new BigNumber(0))]
+    ]);
+    const strategy = new Map([
+      ['Foo', new BigNumber(0)],
+      ['Bar', new BigNumber(0)]
+    ]);
+    const expected = { stats: [ new StrategyData('Foo', 
+        new BigNumber(100), 
+        new BigNumber(100), 
+        new BigNumber(100), 
+        new BigNumber(100),
+        new BigNumber(0), 
+        new BigNumber(100), 
+        new BigNumber(100)),
+      new StrategyData('Bar',
+        new BigNumber(0),
+        new BigNumber(0),
+        new BigNumber(0),
+        new BigNumber(0), 
+        new BigNumber(0), 
+        new BigNumber(0), 
+        new BigNumber(0))
+    ], totalProjectedInvestment: new BigNumber(0) };
+
+    // act
+    const result = Utility.calculateStrategyStats(strategy, assetData);
+
+    // assert
+    assert.deepEqual(result.totalProjectedInvestment, expected.totalProjectedInvestment);
+  });
+});
+
+QUnit.module('InvestmentStrategyManager', function() {
+  QUnit.test('setRandomSharesCountForAssetToStrategy sets random asset count between 0 and whatever can possibly be bought with investmentLimit to a strategy', function(assert) {
+    // arrange
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(23), new BigNumber(23), new BigNumber(10))]
+    ]);
+    const assetName = 'Foo';
+    const investmentLimit = new BigNumber(50);
+    let strategy = new Map();
+
+    // act
+    InvestmentStrategyManager.setRandomSharesCountForAssetToStrategy(strategy, assetName, assetData, investmentLimit);
+
+    // assert
+    assert.true(strategy.has('Foo'));
+    assert.true(strategy.get('Foo') >= 0 );
+    assert.true(strategy.get('Foo') <= 5 );
+  });
+
+  QUnit.test('createStrategy creates investment strategy with random share counts', function(assert) {
+    // arrange
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(23), new BigNumber(23), new BigNumber(10))],
+      ['Bar', new AssetData(new BigNumber(32), new BigNumber(89), new BigNumber(12))],
+      ['Baz', new AssetData(new BigNumber(45), new BigNumber(21), new BigNumber(5))],
+    ]);
+    const investmentLimit = new BigNumber(60);
+
+    // act
+    const result = InvestmentStrategyManager.createStrategy(assetData, investmentLimit);
+
+    // assert
+    assert.true(result.has('Foo'));
+    assert.true(result.has('Bar'));
+    assert.true(result.has('Baz'));
+    assert.true(result.get('Foo') >= 0 );
+    assert.true(result.get('Foo') <= 6 );
+    assert.true(result.get('Bar') >= 0 );
+    assert.true(result.get('Bar') <= 5 );
+    assert.true(result.get('Baz') >= 0 );
+    assert.true(result.get('Baz') <= 12 );
+  });
+
+  QUnit.test('mateStrategies mates 2 investment strategies', function(assert) {
+    // arrange
+    const strategy1 = new Map([ [ 'Foo', 3 ], [ 'Bar', 4 ], [ 'Baz', 9 ] ]);
+    const strategy2 = new Map([ [ 'Foo', 1 ], [ 'Bar', 2 ], [ 'Baz', 7 ] ]);
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(23), new BigNumber(23), new BigNumber(10))],
+      ['Bar', new AssetData(new BigNumber(32), new BigNumber(89), new BigNumber(12))],
+      ['Baz', new AssetData(new BigNumber(45), new BigNumber(21), new BigNumber(5))],
+    ]);
+    const investmentLimit = new BigNumber(60);
+
+    // act
+    const result = InvestmentStrategyManager.mateStrategies(strategy1, strategy2, assetData, investmentLimit);
+
+    // assert
+    assert.true(result.has('Foo'));
+    assert.true(result.has('Bar'));
+    assert.true(result.has('Baz'));
+    assert.true(result.get('Foo') >= 0 );
+    assert.true(result.get('Foo') <= 6 );
+    assert.true(result.get('Bar') >= 0 );
+    assert.true(result.get('Bar') <= 5 );
+    assert.true(result.get('Baz') >= 0 );
+    assert.true(result.get('Baz') <= 12 );
+  });
+
+  QUnit.test('calculateStrategyFitness calculates investment strategy fitness', function(assert) {
+    // arrange
+    const strategy = new Map([ [ 'Foo', 3 ], [ 'Bar', 1 ], [ 'Baz', 2 ] ]);
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(23), new BigNumber(23), new BigNumber(10))],
+      ['Bar', new AssetData(new BigNumber(32), new BigNumber(89), new BigNumber(12))],
+      ['Baz', new AssetData(new BigNumber(45), new BigNumber(21), new BigNumber(5))],
+    ]);
+    const investmentLimit = new BigNumber(60);
+    const expected = new BigNumber({ s: 1, e: 1, c: [ 69, 81981981981981, 98200000000000 ], _isBigNumber: true });
+
+    // act
+    const result = InvestmentStrategyManager.calculateStrategyFitness(strategy, assetData, investmentLimit);
+
+    // assert
+    assert.true(result.isEqualTo(expected));
+  });
+
+  QUnit.test('calculateStrategyFitness calculates investment strategy fitness as minimal when it exceeds investment limit', function(assert) {
+    // arrange
+    const strategy = new Map([ [ 'Foo', 6 ], [ 'Bar', 5 ], [ 'Baz', 12 ] ]);
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(23), new BigNumber(23), new BigNumber(10))],
+      ['Bar', new AssetData(new BigNumber(32), new BigNumber(89), new BigNumber(12))],
+      ['Baz', new AssetData(new BigNumber(45), new BigNumber(21), new BigNumber(5))],
+    ]);
+    const investmentLimit = new BigNumber(60);
+    const expected = new BigNumber(Number.MAX_VALUE);
+
+    // act
+    const result = InvestmentStrategyManager.calculateStrategyFitness(strategy, assetData, investmentLimit);
+
+    // assert
+    assert.true(result.isEqualTo(expected));
+  });
+});
+
+QUnit.module('StrategyPopulationManager', function() {
+  QUnit.test('runWorker runs genetic algorithm for determining the best investment strategy', function(assert) {
+    // arrange
+    const populationSize = new BigNumber(500);
+    const stopAfterNGenerationsWithoutBetterResult = 30;
+    const assetData = new Map([
+      ['Foo', new AssetData(new BigNumber(15), new BigNumber(0), new BigNumber(90))],
+      ['Bar', new AssetData(new BigNumber(45), new BigNumber(0), new BigNumber(45))],
+      ['Baz', new AssetData(new BigNumber(10), new BigNumber(0), new BigNumber(90))],
+      ['Foz', new AssetData(new BigNumber(30), new BigNumber(0), new BigNumber(60))]
+    ]);
+    const investmentLimit = new BigNumber(1800);
+    let callbackMessages = [];
+    const callback = function(msg)
+    {
+      callbackMessages.push(msg);
+    };
+
+    // act
+    StrategyPopulationManager.runWorker(populationSize, stopAfterNGenerationsWithoutBetterResult, assetData, investmentLimit, callback);
+
+    // assert
+    assert.true(callbackMessages.length > 1);
+
+    const finalGeneration = callbackMessages[callbackMessages.length - 1];
+    const secondToFinalGeneration = callbackMessages[callbackMessages.length - 2];
+    assert.equal(finalGeneration.result.strategy.get('Foo'), 3);
+    assert.equal(finalGeneration.result.strategy.get('Bar'), 18);
+    assert.equal(finalGeneration.result.strategy.get('Baz'), 2);
+    assert.equal(finalGeneration.result.strategy.get('Foz'), 9);
+    assert.true(finalGeneration.result.fitness.isEqualTo(new BigNumber(0)));
+    assert.false(secondToFinalGeneration.result.fitness.isEqualTo(new BigNumber(0)));
+    assert.true(finalGeneration.strategyStats.totalProjectedInvestment.isEqualTo(new BigNumber(1800)));
+  });
+
+  QUnit.test('stop returns true if last best fitness is zero', function(assert) {
+    // arrange
+    const lastNBestFitnesses = [ new BigNumber(12.56), new BigNumber(0) ];
+    const stopAfterNGenerationsWithoutBetterResult = 5;
+
+    // act
+    const result = StrategyPopulationManager.stop(lastNBestFitnesses, stopAfterNGenerationsWithoutBetterResult);
+
+    // assert
+    assert.true(result);
+  });
+
+  QUnit.test('stop returns true if array of best fitnesses is full of identical fitnesses', function(assert) {
+    // arrange
+    const lastNBestFitnesses = [ new BigNumber(12.56), new BigNumber(12.56), new BigNumber(12.56), new BigNumber(12.56), new BigNumber(12.56) ];
+    const stopAfterNGenerationsWithoutBetterResult = 5;
+
+    // act
+    const result = StrategyPopulationManager.stop(lastNBestFitnesses, stopAfterNGenerationsWithoutBetterResult);
+
+    // assert
+    assert.true(result);
+  });
+
+  QUnit.test('stop returns false if array of best fitnesses is empty', function(assert) {
+    // arrange
+    const lastNBestFitnesses = [ ];
+    const stopAfterNGenerationsWithoutBetterResult = 5;
+
+    // act
+    const result = StrategyPopulationManager.stop(lastNBestFitnesses, stopAfterNGenerationsWithoutBetterResult);
+
+    // assert
+    assert.false(result);
+  });
+
+  QUnit.test('stop returns false if last best fitness is not zero', function(assert) {
+    // arrange
+    const lastNBestFitnesses = [ new BigNumber(12.56), new BigNumber(6.54) ];
+    const stopAfterNGenerationsWithoutBetterResult = 5;
+
+    // act
+    const result = StrategyPopulationManager.stop(lastNBestFitnesses, stopAfterNGenerationsWithoutBetterResult);
+
+    // assert
+    assert.false(result);
+  });
+
+  QUnit.test('stop returns false if in array of best fitnesses first element is not equal to last', function(assert) {
+    // arrange
+    const lastNBestFitnesses = [ new BigNumber(12.56), new BigNumber(11.87), new BigNumber(11.87), new BigNumber(9.44), new BigNumber(6.54) ];
+    const stopAfterNGenerationsWithoutBetterResult = 5;
+
+    // act
+    const result = StrategyPopulationManager.stop(lastNBestFitnesses, stopAfterNGenerationsWithoutBetterResult);
+
+    // assert
+    assert.false(result);
+  });
+});
+
+</script>
+
+</body>
+</html>
